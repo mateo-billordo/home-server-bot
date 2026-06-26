@@ -9,7 +9,7 @@ load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0").strip().strip("'\""))
 WOL_INTERFACE = os.getenv("WOL_INTERFACE", "wlp3s0")
-WOL_TARGETS_FILE = "/app/wol_targets.json"
+WOL_TARGETS_FILE = "/app/data/wol_targets.json"
 
 MONITOR_INTERVAL = 300  # seconds (5 min)
 DISK_THRESHOLD = 90

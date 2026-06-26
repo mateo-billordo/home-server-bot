@@ -8,4 +8,4 @@ services:
       - .env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./wol_targets.json:/app/wol_targets.json
+      - ./data:/app/data
