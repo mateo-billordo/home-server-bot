@@ -39,6 +39,12 @@ cp .env.example .env
 ### 3. Deploy
 
 ```bash
+bash deploy.sh
+```
+
+Or manually:
+
+```bash
 docker compose build --no-cache
 docker compose up -d
 ```
@@ -67,7 +73,9 @@ Use the bot's ⚡ Wake-on-LAN → ➕ Agregar dispositivo menu. Or edit `wol_tar
 |----------|---------|-------------|
 | `TELEGRAM_TOKEN` | — | Bot token from @BotFather |
 | `ADMIN_ID` | — | Your Telegram chat ID |
-| `WOL_INTERFACE` | `wlp3s0` | Network interface for WOL packets |
+| `WOL_INTERFACE` | `wlp3s0` | Network interface for WOL packets (must be on same LAN as target devices) |
+
+> **Finding your WOL interface:** Run `ip -br link` — pick the interface that's `UP` and connected to your LAN (usually `wlp*` for WiFi or `enp*`/`eth*` for Ethernet).
 
 ## Project Structure
 
