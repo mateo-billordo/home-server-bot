@@ -1,0 +1,11 @@
+services:
+  home-server-bot:
+    build: .
+    container_name: home_server_bot
+    restart: always
+    network_mode: "host"
+    env_file:
+      - .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./wol_targets.json:/app/wol_targets.json
