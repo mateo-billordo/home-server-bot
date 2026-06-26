@@ -108,8 +108,7 @@ def handle_callback(call):
                                     reply_markup=build_wol_menu())
             return
         success, msg = send_wol(mac, WOL_INTERFACE)
-        emoji = "✅" if success else "❌"
-        tgbot.edit_message_text(f"{emoji} {msg}", chat_id, msg_id,
+        tgbot.edit_message_text(msg, chat_id, msg_id,
                                 reply_markup=build_wol_menu(), parse_mode="Markdown")
         return
 
