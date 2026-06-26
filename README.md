@@ -42,6 +42,12 @@ cp .env.example .env
 bash deploy.sh
 ```
 
+Use `--force` if you changed volumes or network config:
+
+```bash
+bash deploy.sh --force
+```
+
 Or manually:
 
 ```bash
