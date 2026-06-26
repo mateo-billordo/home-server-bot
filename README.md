@@ -17,6 +17,13 @@ Telegram bot for monitoring the home server and sending Wake-on-LAN packets remo
 🖥️ Estado    | 🐳 Docker
 🌐 Red       | 🔒 VPN
 ⚡ Wake-on-LAN
+
+VPN sub-panel:
+  ├── (status display)
+  ├── 🔄 Reiniciar VPN
+  └── ← Volver
+
+Wake-on-LAN sub-panel:
   ├── ⚡ PC-Mateo (send WOL)
   ├── ➕ Agregar dispositivo
   ├── 🗑️ Eliminar dispositivo
@@ -69,9 +76,9 @@ Use the bot's ⚡ Wake-on-LAN → ➕ Agregar dispositivo menu. Or edit `wol_tar
 
 - Docker + Docker Compose
 - `network_mode: host` (required for WOL broadcast and system monitoring)
+- `cap_add: NET_ADMIN` (required for WireGuard status and restart)
 - Docker socket mounted (for container status)
-- `etherwake` available in container
-- WireGuard requires `sudo wg` — container runs as root
+- Docker CLI copied via multi-stage build (no full Docker Engine in container)
 
 ## Environment Variables
 
