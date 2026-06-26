@@ -34,7 +34,8 @@ def handle_text(message):
 
     if state and state.startswith("wol_add_mac:"):
         name = state.split(":", 1)[1]
-        mac = message.text.strip().lower()
+        from bot.monitor import normalize_mac
+        mac = normalize_mac(message.text.strip())
         targets = load_wol_targets()
         targets[name] = mac
         save_wol_targets(targets)

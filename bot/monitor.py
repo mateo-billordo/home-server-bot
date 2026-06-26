@@ -96,7 +96,17 @@ def get_wireguard_status() -> str:
     return "\n".join(lines)
 
 
+def normalize_mac(mac: str) -> str:
+    """Normalize MAC address to colon-separated format (AA:BB:CC:DD:EE:FF)."""
+    mac = mac.strip().upper().replace("-", ":").replace(".", ":")
+    # Handle no-separator format (AABBCCDDEEFF)
+    if len(mac) == 12 and ":" not in mac:
+        mac = ":".join(mac[i:i+2] for i in range(0, 12, 2))
+    return mac
+
+
 def send_wol(mac: str, interface: str) -> tuple[bool, str]:
+    mac = normalize_mac(mac)
     result = subprocess.run(
         ["etherwake", "-i", interface, mac],
         capture_output=True, text=True

@@ -5,6 +5,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iputils-ping \
     iproute2 \
     wireguard-tools \
+    procps \
+    curl \
+    && curl -fsSL https://get.docker.com | sh \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
