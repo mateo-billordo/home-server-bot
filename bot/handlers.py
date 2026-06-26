@@ -1,10 +1,10 @@
 import subprocess
 
 from bot.config import ADMIN_ID, MSGS, WOL_INTERFACE, tgbot, load_wol_targets, save_wol_targets
-from bot.keyboards import build_main_menu, build_wol_menu, build_back_button
+from bot.keyboards import build_main_menu, build_wol_menu, build_back_button, build_vpn_buttons
 from bot.monitor import (
     get_system_status, get_docker_status, get_network_status,
-    get_wireguard_status, send_wol,
+    get_wireguard_status, send_wol, restart_wireguard,
 )
 
 # Multi-step flow state
@@ -91,7 +91,13 @@ def handle_callback(call):
 
     if call.data == "vpn":
         tgbot.edit_message_text(get_wireguard_status(), chat_id, msg_id,
-                                reply_markup=build_back_button(), parse_mode="Markdown")
+                                reply_markup=build_vpn_buttons(), parse_mode="Markdown")
+        return
+
+    if call.data == "vpn_restart":
+        success, msg = restart_wireguard()
+        tgbot.edit_message_text(msg, chat_id, msg_id,
+                                reply_markup=build_vpn_buttons(), parse_mode="Markdown")
         return
 
     if call.data == "wol_menu":

@@ -96,6 +96,16 @@ def get_wireguard_status() -> str:
     return "\n".join(lines)
 
 
+def restart_wireguard() -> tuple[bool, str]:
+    """Restart WireGuard interface. Returns (success, message)."""
+    down = subprocess.run(["wg-quick", "down", "wg0"], capture_output=True, text=True)
+    up = subprocess.run(["wg-quick", "up", "wg0"], capture_output=True, text=True)
+    if up.returncode == 0:
+        return (True, MSGS["vpn_restarted"])
+    error = up.stderr.strip() or down.stderr.strip() or "Error desconocido"
+    return (False, MSGS["vpn_restart_error"].format(error=error))
+
+
 def normalize_mac(mac: str) -> str:
     """Normalize MAC address to colon-separated format (AA:BB:CC:DD:EE:FF)."""
     mac = mac.strip().upper().replace("-", ":").replace(".", ":")

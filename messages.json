@@ -35,5 +35,8 @@
   "docker_empty": "_(ninguno corriendo)_",
   "network_title": "🌐 *Red*",
   "vpn_title": "🔒 *WireGuard*",
-  "vpn_inactive": "🔒 *WireGuard:* ❌ inactivo"
+  "vpn_inactive": "🔒 *WireGuard:* ❌ inactivo",
+  "vpn_restarted": "✅ WireGuard reiniciado correctamente.",
+  "vpn_restart_error": "❌ Error al reiniciar WireGuard:\n`{error}`",
+  "btn_vpn_restart": "🔄 Reiniciar VPN"
 }

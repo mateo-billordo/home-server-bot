@@ -36,3 +36,10 @@ def build_back_button() -> types.InlineKeyboardMarkup:
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton(MSGS["btn_back"], callback_data="back_main"))
     return markup
+
+
+def build_vpn_buttons() -> types.InlineKeyboardMarkup:
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton(MSGS["btn_vpn_restart"], callback_data="vpn_restart"))
+    markup.add(types.InlineKeyboardButton(MSGS["btn_back"], callback_data="back_main"))
+    return markup
