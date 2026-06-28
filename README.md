@@ -1,14 +1,14 @@
 # Home Server Bot
 
-Telegram bot for monitoring the home server and sending Wake-on-LAN packets remotely.
+Telegram bot for monitoring the home server, waking and shutting down remote devices.
 
 ## Features
 
 - **System monitoring** — CPU, RAM, disk, temperature, load average
 - **Docker status** — list running containers and their health
 - **Network info** — interfaces, IPs, connection state
-- **WireGuard VPN** — connection status, peers, traffic
-- **Wake-on-LAN** — wake configured devices from anywhere via Telegram
+- **WireGuard VPN** — connection status, peers, traffic, restart
+- **Power management** — Wake-on-LAN + remote shutdown (SSH) from a unified menu
 - **Proactive alerts** — notifies admin when disk/RAM/temp cross thresholds
 
 ## Menu
@@ -16,15 +16,11 @@ Telegram bot for monitoring the home server and sending Wake-on-LAN packets remo
 ```
 🖥️ Estado    | 🐳 Docker
 🌐 Red       | 🔒 VPN
-⚡ Wake-on-LAN
+⚡ Power
 
-VPN sub-panel:
-  ├── (status display)
-  ├── 🔄 Reiniciar VPN
-  └── ← Volver
-
-Wake-on-LAN sub-panel:
-  ├── ⚡ PC-Mateo (send WOL)
+Power sub-panel:
+  ├── ⚡ PC-Mateo  (send WOL)
+  ├── 🔴 PC-Mateo  (shutdown via SSH — with confirmation)
   ├── ➕ Agregar dispositivo
   ├── 🗑️ Eliminar dispositivo
   └── ← Volver
@@ -55,22 +51,53 @@ Use `--force` if you changed volumes or network config:
 bash deploy.sh --force
 ```
 
-Or manually:
+### 4. Add devices
 
-```bash
-docker compose build --no-cache
-docker compose up -d
-```
+Use the bot's ⚡ Power → ➕ Agregar dispositivo menu. The flow asks for:
 
-### 4. Add WOL targets
+1. **Name** — display name (e.g., `PC-Mateo`)
+2. **MAC** — for Wake-on-LAN (e.g., `AA:BB:CC:DD:EE:FF`)
+3. **Host** — IP/hostname for SSH shutdown (type `-` to skip)
+4. **User** — SSH username on the remote machine
 
-Use the bot's ⚡ Wake-on-LAN → ➕ Agregar dispositivo menu. Or edit `wol_targets.json` directly:
+Data is stored in `data/wol_targets.json`:
 
 ```json
 {
-  "PC-Mateo": "AA:BB:CC:DD:EE:FF"
+  "PC-Mateo": {
+    "mac": "AA:BB:CC:DD:EE:FF",
+    "host": "192.168.0.50",
+    "user": "mateo"
+  }
 }
 ```
+
+### 5. SSH shutdown setup (Windows target)
+
+The bot shuts down remote machines via `ssh user@host "shutdown /s /t 0"`.
+
+**On the Windows PC:**
+
+1. Enable OpenSSH Server:
+   - Settings → Apps → Optional Features → Add a feature → OpenSSH Server → Install
+   - Services → "OpenSSH SSH Server" → Start + set to Automatic
+
+2. Add the homeserver's public key:
+   ```powershell
+   # Get key from homeserver:
+   # cat ~/.ssh/id_rsa.pub
+   #
+   # Paste into one of:
+   #   C:\Users\<you>\.ssh\authorized_keys          (standard user)
+   #   C:\ProgramData\ssh\administrators_authorized_keys  (admin user)
+   ```
+
+3. Test from homeserver:
+   ```bash
+   ssh -i ~/.ssh/id_rsa mateo@192.168.0.50 "echo works"
+   ```
+
+**On the homeserver:** the `docker-compose.yml` mounts `~/.ssh/id_rsa` (read-only) into the container.
 
 ## Requirements
 
@@ -78,7 +105,7 @@ Use the bot's ⚡ Wake-on-LAN → ➕ Agregar dispositivo menu. Or edit `wol_tar
 - `network_mode: host` (required for WOL broadcast and system monitoring)
 - `cap_add: NET_ADMIN` (required for WireGuard status and restart)
 - Docker socket mounted (for container status)
-- Docker CLI copied via multi-stage build (no full Docker Engine in container)
+- SSH private key mounted (for remote shutdown)
 
 ## Environment Variables
 
@@ -86,9 +113,8 @@ Use the bot's ⚡ Wake-on-LAN → ➕ Agregar dispositivo menu. Or edit `wol_tar
 |----------|---------|-------------|
 | `TELEGRAM_TOKEN` | — | Bot token from @BotFather |
 | `ADMIN_ID` | — | Your Telegram chat ID |
-| `WOL_INTERFACE` | `wlp3s0` | Network interface for WOL packets (must be on same LAN as target devices) |
-
-> **Finding your WOL interface:** Run `ip -br link` — pick the interface that's `UP` and connected to your LAN (usually `wlp*` for WiFi or `enp*`/`eth*` for Ethernet).
+| `WOL_INTERFACE` | `wlp3s0` | Network interface for WOL packets |
+| `SSH_KEY_PATH` | `/app/ssh/id_rsa` | Path to SSH private key inside container |
 
 ## Project Structure
 
@@ -96,16 +122,18 @@ Use the bot's ⚡ Wake-on-LAN → ➕ Agregar dispositivo menu. Or edit `wol_tar
 home-server-bot/
 ├── bot/
 │   ├── __init__.py
-│   ├── config.py        # Configuration, bot instance, WOL targets
-│   ├── monitor.py       # System monitoring + WOL functions
+│   ├── config.py        # Configuration, bot instance, device targets
+│   ├── monitor.py       # System monitoring, WOL, SSH shutdown
 │   ├── keyboards.py     # Inline keyboard builders
 │   ├── handlers.py      # Telegram command + callback handlers
 │   ├── watcher.py       # Background health alert thread
 │   └── main.py          # Entry point
+├── data/
+│   └── wol_targets.json # Device registry (persistent volume)
 ├── messages.json        # UI strings (Spanish)
-├── wol_targets.json     # WOL device registry (persistent volume)
 ├── Dockerfile
 ├── docker-compose.yml
+├── deploy.sh
 ├── .env.example
 └── .gitignore
 ```

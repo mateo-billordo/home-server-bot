@@ -1,14 +1,14 @@
-import subprocess
-
 from bot.config import ADMIN_ID, MSGS, WOL_INTERFACE, tgbot, load_wol_targets, save_wol_targets
-from bot.keyboards import build_main_menu, build_wol_menu, build_back_button, build_vpn_buttons
+from bot.keyboards import build_main_menu, build_power_menu, build_back_button, build_vpn_buttons, build_shutdown_confirm
 from bot.monitor import (
     get_system_status, get_docker_status, get_network_status,
-    get_wireguard_status, send_wol, restart_wireguard,
+    get_wireguard_status, send_wol, restart_wireguard, shutdown_device, normalize_mac,
 )
 
 # Multi-step flow state
 user_state: dict[int, str] = {}
+# Temp storage for multi-step add
+user_data: dict[int, dict] = {}
 
 
 @tgbot.message_handler(commands=['start', 'menu'])
@@ -26,34 +26,54 @@ def handle_text(message):
         return
     chat_id = message.chat.id
     state = user_state.pop(chat_id, None)
+    text = message.text.strip()
 
-    if state == "wol_add_name":
-        user_state[chat_id] = f"wol_add_mac:{message.text.strip()}"
-        tgbot.reply_to(message, MSGS["wol_prompt_mac"])
+    if state == "power_add_name":
+        user_data[chat_id] = {"name": text}
+        user_state[chat_id] = "power_add_mac"
+        tgbot.reply_to(message, MSGS["power_prompt_mac"])
         return
 
-    if state and state.startswith("wol_add_mac:"):
-        name = state.split(":", 1)[1]
-        from bot.monitor import normalize_mac
-        mac = normalize_mac(message.text.strip())
-        targets = load_wol_targets()
-        targets[name] = mac
-        save_wol_targets(targets)
-        tgbot.reply_to(message, MSGS["wol_added"].format(name=name, mac=mac),
-                       reply_markup=build_wol_menu(), parse_mode="Markdown")
+    if state == "power_add_mac":
+        user_data[chat_id]["mac"] = normalize_mac(text)
+        user_state[chat_id] = "power_add_host"
+        tgbot.reply_to(message, MSGS["power_prompt_host"])
         return
 
-    if state == "wol_remove":
-        name = message.text.strip()
-        targets = load_wol_targets()
-        if name in targets:
-            del targets[name]
+    if state == "power_add_host":
+        if text == "-":
+            # No shutdown config
+            data = user_data.pop(chat_id)
+            targets = load_wol_targets()
+            targets[data["name"]] = {"mac": data["mac"], "host": "", "user": ""}
             save_wol_targets(targets)
-            tgbot.reply_to(message, MSGS["wol_removed"].format(name=name),
-                           reply_markup=build_wol_menu(), parse_mode="Markdown")
+            tgbot.reply_to(message, MSGS["power_added"].format(name=data["name"]),
+                           reply_markup=build_power_menu(), parse_mode="Markdown")
         else:
-            tgbot.reply_to(message, MSGS["wol_not_found"].format(name=name),
-                           reply_markup=build_wol_menu())
+            user_data[chat_id]["host"] = text
+            user_state[chat_id] = "power_add_user"
+            tgbot.reply_to(message, MSGS["power_prompt_user"])
+        return
+
+    if state == "power_add_user":
+        data = user_data.pop(chat_id)
+        targets = load_wol_targets()
+        targets[data["name"]] = {"mac": data["mac"], "host": data["host"], "user": text}
+        save_wol_targets(targets)
+        tgbot.reply_to(message, MSGS["power_added"].format(name=data["name"]),
+                       reply_markup=build_power_menu(), parse_mode="Markdown")
+        return
+
+    if state == "power_remove":
+        targets = load_wol_targets()
+        if text in targets:
+            del targets[text]
+            save_wol_targets(targets)
+            tgbot.reply_to(message, MSGS["power_removed"].format(name=text),
+                           reply_markup=build_power_menu(), parse_mode="Markdown")
+        else:
+            tgbot.reply_to(message, MSGS["power_not_found"].format(name=text),
+                           reply_markup=build_power_menu())
         return
 
     tgbot.reply_to(message, MSGS["welcome"], reply_markup=build_main_menu(), parse_mode="Markdown")
@@ -100,37 +120,78 @@ def handle_callback(call):
                                 reply_markup=build_vpn_buttons(), parse_mode="Markdown")
         return
 
-    if call.data == "wol_menu":
-        tgbot.edit_message_text(MSGS["wol_title"], chat_id, msg_id,
-                                reply_markup=build_wol_menu(), parse_mode="Markdown")
+    # --- Power menu ---
+    if call.data == "power_menu":
+        tgbot.edit_message_text(MSGS["power_title"], chat_id, msg_id,
+                                reply_markup=build_power_menu(), parse_mode="Markdown")
         return
 
-    if call.data.startswith("wol_send_"):
-        name = call.data[len("wol_send_"):]
+    if call.data.startswith("wake_"):
+        name = call.data[5:]
         targets = load_wol_targets()
-        mac = targets.get(name)
-        if not mac:
-            tgbot.edit_message_text(MSGS["wol_not_found"].format(name=name), chat_id, msg_id,
-                                    reply_markup=build_wol_menu())
+        info = targets.get(name)
+        if not info or not info.get("mac"):
+            tgbot.edit_message_text(MSGS["power_not_found"].format(name=name), chat_id, msg_id,
+                                    reply_markup=build_power_menu())
             return
-        success, msg = send_wol(mac, WOL_INTERFACE)
+        success, result = send_wol(info["mac"], WOL_INTERFACE)
+        if success:
+            msg = MSGS["wol_success"].format(name=name, mac=result)
+        else:
+            msg = MSGS["wol_error"].format(error=result)
         tgbot.edit_message_text(msg, chat_id, msg_id,
-                                reply_markup=build_wol_menu(), parse_mode="Markdown")
+                                reply_markup=build_power_menu(), parse_mode="Markdown")
         return
 
-    if call.data == "wol_add":
-        user_state[chat_id] = "wol_add_name"
-        tgbot.edit_message_text(MSGS["wol_prompt_name"], chat_id, msg_id)
+    if call.data.startswith("shutdown_") and not call.data.startswith("shutdown_yes_") and call.data != "shutdown_no":
+        name = call.data[9:]
+        targets = load_wol_targets()
+        info = targets.get(name)
+        if not info or not info.get("host"):
+            tgbot.edit_message_text(MSGS["power_not_found"].format(name=name), chat_id, msg_id,
+                                    reply_markup=build_power_menu())
+            return
+        tgbot.edit_message_text(
+            MSGS["shutdown_confirm"].format(name=name, host=info["host"]),
+            chat_id, msg_id,
+            reply_markup=build_shutdown_confirm(name), parse_mode="Markdown")
         return
 
-    if call.data == "wol_remove":
+    if call.data.startswith("shutdown_yes_"):
+        name = call.data[13:]
+        targets = load_wol_targets()
+        info = targets.get(name)
+        if not info or not info.get("host"):
+            tgbot.edit_message_text(MSGS["power_not_found"].format(name=name), chat_id, msg_id,
+                                    reply_markup=build_power_menu())
+            return
+        success, error = shutdown_device(info["host"], info["user"])
+        if success:
+            msg = MSGS["shutdown_success"].format(name=name)
+        else:
+            msg = MSGS["shutdown_error"].format(name=name, error=error)
+        tgbot.edit_message_text(msg, chat_id, msg_id,
+                                reply_markup=build_power_menu(), parse_mode="Markdown")
+        return
+
+    if call.data == "shutdown_no":
+        tgbot.edit_message_text(MSGS["shutdown_cancelled"], chat_id, msg_id,
+                                reply_markup=build_power_menu(), parse_mode="Markdown")
+        return
+
+    if call.data == "power_add":
+        user_state[chat_id] = "power_add_name"
+        tgbot.edit_message_text(MSGS["power_prompt_name"], chat_id, msg_id)
+        return
+
+    if call.data == "power_remove":
         targets = load_wol_targets()
         if not targets:
-            tgbot.edit_message_text(MSGS["wol_empty"], chat_id, msg_id,
-                                    reply_markup=build_wol_menu())
+            tgbot.edit_message_text(MSGS["power_empty"], chat_id, msg_id,
+                                    reply_markup=build_power_menu())
             return
-        user_state[chat_id] = "wol_remove"
+        user_state[chat_id] = "power_remove"
         listing = "\n".join(f"• `{n}`" for n in targets.keys())
-        tgbot.edit_message_text(MSGS["wol_prompt_remove"].format(devices=listing),
+        tgbot.edit_message_text(MSGS["power_prompt_remove"].format(devices=listing),
                                 chat_id, msg_id, parse_mode="Markdown")
         return

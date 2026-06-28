@@ -2,7 +2,7 @@ import subprocess
 import psutil
 import shutil
 
-from bot.config import MSGS
+from bot.config import MSGS, SSH_KEY_PATH
 
 
 def get_system_status() -> str:
@@ -68,7 +68,7 @@ def get_network_status() -> str:
             iface = parts[0]
             state = parts[1]
             addrs = " ".join(parts[2:]) if len(parts) > 2 else ""
-            if iface.startswith(("veth", "br-", "docker")):
+            if iface.startswith(("veth", "br-", "docker")) or iface == "lo":
                 continue
             emoji = "🟢" if state in ("UP", "UNKNOWN") else "🔴"
             lines.append(f"{emoji} `{iface}` ({state}) {addrs}")
@@ -97,7 +97,6 @@ def get_wireguard_status() -> str:
 
 
 def restart_wireguard() -> tuple[bool, str]:
-    """Restart WireGuard interface. Returns (success, message)."""
     down = subprocess.run(["wg-quick", "down", "wg0"], capture_output=True, text=True)
     up = subprocess.run(["wg-quick", "up", "wg0"], capture_output=True, text=True)
     if up.returncode == 0:
@@ -107,9 +106,7 @@ def restart_wireguard() -> tuple[bool, str]:
 
 
 def normalize_mac(mac: str) -> str:
-    """Normalize MAC address to colon-separated format (AA:BB:CC:DD:EE:FF)."""
     mac = mac.strip().upper().replace("-", ":").replace(".", ":")
-    # Handle no-separator format (AABBCCDDEEFF)
     if len(mac) == 12 and ":" not in mac:
         mac = ":".join(mac[i:i+2] for i in range(0, 12, 2))
     return mac
@@ -122,5 +119,19 @@ def send_wol(mac: str, interface: str) -> tuple[bool, str]:
         capture_output=True, text=True
     )
     if result.returncode == 0:
-        return (True, MSGS["wol_success"].format(mac=mac))
-    return (False, MSGS["wol_error"].format(error=result.stderr.strip() or "Error desconocido"))
+        return (True, mac)
+    return (False, result.stderr.strip() or "Error desconocido")
+
+
+def shutdown_device(host: str, user: str) -> tuple[bool, str]:
+    """Shutdown a remote device via SSH. Returns (success, error_message)."""
+    result = subprocess.run(
+        ["ssh", "-i", SSH_KEY_PATH,
+         "-o", "StrictHostKeyChecking=no",
+         "-o", "ConnectTimeout=5",
+         f"{user}@{host}", "shutdown /s /t 0"],
+        capture_output=True, text=True, timeout=15
+    )
+    if result.returncode == 0:
+        return (True, "")
+    return (False, result.stderr.strip() or result.stdout.strip() or "Error desconocido")

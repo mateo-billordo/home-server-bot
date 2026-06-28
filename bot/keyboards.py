@@ -1,6 +1,6 @@
 from telebot import types
 
-from bot.config import ADMIN_ID, MSGS, load_wol_targets
+from bot.config import MSGS, load_wol_targets
 
 
 def build_main_menu() -> types.InlineKeyboardMarkup:
@@ -14,21 +14,38 @@ def build_main_menu() -> types.InlineKeyboardMarkup:
         types.InlineKeyboardButton(MSGS["btn_vpn"], callback_data="vpn"),
     )
     markup.add(
-        types.InlineKeyboardButton(MSGS["btn_wol"], callback_data="wol_menu"),
+        types.InlineKeyboardButton(MSGS["btn_power"], callback_data="power_menu"),
     )
     return markup
 
 
-def build_wol_menu() -> types.InlineKeyboardMarkup:
+def build_power_menu() -> types.InlineKeyboardMarkup:
     targets = load_wol_targets()
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    for name in targets:
-        markup.add(types.InlineKeyboardButton(f"⚡ {name}", callback_data=f"wol_send_{name}"))
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    for name, info in targets.items():
+        row = []
+        if info.get("mac"):
+            row.append(types.InlineKeyboardButton(
+                f"⚡ {name}", callback_data=f"wake_{name}"))
+        if info.get("host") and info.get("user"):
+            row.append(types.InlineKeyboardButton(
+                f"🔴 {name}", callback_data=f"shutdown_{name}"))
+        if row:
+            markup.add(*row)
     markup.add(
-        types.InlineKeyboardButton(MSGS["btn_wol_add"], callback_data="wol_add"),
-        types.InlineKeyboardButton(MSGS["btn_wol_remove"], callback_data="wol_remove"),
+        types.InlineKeyboardButton(MSGS["power_btn_add"], callback_data="power_add"),
+        types.InlineKeyboardButton(MSGS["power_btn_remove"], callback_data="power_remove"),
     )
     markup.add(types.InlineKeyboardButton(MSGS["btn_back"], callback_data="back_main"))
+    return markup
+
+
+def build_shutdown_confirm(name: str) -> types.InlineKeyboardMarkup:
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton(MSGS["shutdown_btn_yes"], callback_data=f"shutdown_yes_{name}"),
+        types.InlineKeyboardButton(MSGS["shutdown_btn_no"], callback_data="shutdown_no"),
+    )
     return markup
 
 

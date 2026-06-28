@@ -11,3 +11,4 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./data:/app/data
+      - ~/.ssh/id_rsa:/app/ssh/id_rsa:ro

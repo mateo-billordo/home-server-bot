@@ -10,6 +10,7 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0").strip().strip("'\""))
 WOL_INTERFACE = os.getenv("WOL_INTERFACE", "wlp3s0")
 WOL_TARGETS_FILE = "/app/data/wol_targets.json"
+SSH_KEY_PATH = os.getenv("SSH_KEY_PATH", "/app/ssh/id_rsa")
 
 MONITOR_INTERVAL = 300  # seconds (5 min)
 DISK_THRESHOLD = 90
@@ -25,13 +26,23 @@ with open("messages.json", "r", encoding="utf-8") as f:
     MSGS = json.load(f)
 
 
-def load_wol_targets() -> dict[str, str]:
-    if os.path.exists(WOL_TARGETS_FILE):
-        with open(WOL_TARGETS_FILE, "r") as f:
-            return json.load(f)
-    return {}
+def load_wol_targets() -> dict[str, dict]:
+    """Load targets. Migrates old format {"name": "mac"} to new format."""
+    if not os.path.exists(WOL_TARGETS_FILE):
+        return {}
+    with open(WOL_TARGETS_FILE, "r") as f:
+        data = json.load(f)
+    # Migrate old format
+    migrated = False
+    for name, value in data.items():
+        if isinstance(value, str):
+            data[name] = {"mac": value, "host": "", "user": ""}
+            migrated = True
+    if migrated:
+        save_wol_targets(data)
+    return data
 
 
-def save_wol_targets(targets: dict[str, str]):
+def save_wol_targets(targets: dict[str, dict]):
     with open(WOL_TARGETS_FILE, "w") as f:
         json.dump(targets, f, indent=2)
